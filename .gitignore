@@ -1,0 +1,26 @@
+
+.env
+.env.*
+!.env.example
+
+# Node dependencies
+node_modules/
+
+# Frontend build
+frontend/dist/
+
+# Python environment and cache
+myenv/
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Temporary audio
+*.mp3
+*.wav
+*.webm
+*.ogg
+
+# Logs
+*.log
