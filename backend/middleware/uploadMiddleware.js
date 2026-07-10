@@ -1,21 +1,15 @@
 import multer from "multer";
-import path from "path";
 
-
-const storage = multer.diskStorage({
-    destination(req, file, cb) {
-        cb(null, "uploads/");
-    },
-    filename(req, file, cb) {
-        const ext=path.extname(file.originalname);
-        
-        const sessionId=req.params.id || 'unknown';
-        cb(null, `${sessionId}-${Date.now()}${ext}`);
-    },
-}); 
+// Keep uploaded audio temporarily in RAM.
+// This is suitable here because the file is immediately forwarded
+// to the AI service and does not need permanent storage.
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
-    if (file.mimetype.startsWith("audio/") || file.mimetype === "application/octet-stream") {
+    if (
+        file.mimetype.startsWith("audio/") ||
+        file.mimetype === "application/octet-stream"
+    ) {
         cb(null, true);
     } else {
         cb(new Error("Not an audio file"), false);
@@ -23,10 +17,13 @@ const fileFilter = (req, file, cb) => {
 };
 
 const upload = multer({
-    storage: storage,
-    fileFilter: fileFilter,
-    limits: { fileSize: 1024 * 1024 * 10 },
+    storage,
+    fileFilter,
+    limits: {
+        fileSize: 10 * 1024 * 1024
+    },
 });
 
 const uploadSingleAudio = upload.single("audioFile");
+
 export { uploadSingleAudio };

@@ -2,9 +2,7 @@
 import asyncHandler from 'express-async-handler';
 import Session from '../models/SessionModel.js';
 import fetch from 'node-fetch'; // Standard for making HTTP requests (npm install node-fetch@2.6.1)
-import fs from 'fs'; // <-- NEW: For reading and deleting the temporary file
-import FormData from 'form-data'; // <-- NEW: For sending files to FastAPI
-import path from 'path';
+import FormData from 'form-data'; //  For sending files to FastAPI
 import mongoose from 'mongoose';
 // URL for the Python AI Microservice (Must match Step 6 setup)
 const AI_SERVICE_URL =  process.env.AI_SERVICE_URL || 'http://localhost:8000';
@@ -217,7 +215,7 @@ const deleteSession = asyncHandler(async (req, res) => {
     res.status(200).json({ id: req.params.id });
 });
 
-const evaluateAnswerAsync = async (io, userId, sessionId, questionIndex, audioFilePath = null, code = null) => {
+const evaluateAnswerAsync = async (io, userId, sessionId, questionIndex, audioFile = null, code = null) => {
     // Initialize transcription as an empty string instead of null to avoid "null" text in AI prompts
     let transcription = ""; 
 
@@ -235,31 +233,51 @@ const evaluateAnswerAsync = async (io, userId, sessionId, questionIndex, audioFi
         return;
     }
 
-    // --- Phase 1: Transcription (Only if audio exists) ---
-    if (audioFilePath) {
-        try {
-            pushSocketUpdate(io, userId, sessionId, 'AI_TRANSCRIBING', `Transcribing audio for Q${questionIdx + 1}...`);
-            const formData = new FormData();
-            formData.append('file', fs.createReadStream(audioFilePath));
+   // --- Phase 1: Transcription (Only if audio exists) ---
+if (audioFile) {
+    try {
+        pushSocketUpdate(
+            io,
+            userId,
+            sessionId,
+            'AI_TRANSCRIBING',
+            `Transcribing audio for Q${questionIdx + 1}...`
+        );
 
-            const transResponse = await fetch(`${AI_SERVICE_URL}/transcribe`, {
+        const formData = new FormData();
+
+        formData.append(
+            'file',
+            audioFile.buffer,
+            {
+                filename: audioFile.originalname || 'answer.webm',
+                contentType: audioFile.mimetype || 'audio/webm',
+            }
+        );
+
+        const transResponse = await fetch(
+            `${AI_SERVICE_URL}/transcribe`,
+            {
                 method: 'POST',
                 body: formData,
                 headers: formData.getHeaders(),
-            });
+            }
+        );
 
-            if (!transResponse.ok) throw new Error('Transcription service failed');
-
-            const transData = await transResponse.json();
-            transcription = transData.transcription || "";
-        } catch (error) {
-            console.error(`Transcription Error: ${error.message}`);
-            // We continue even if transcription fails so the code can still be evaluated
-        } finally {
-            if (audioFilePath && fs.existsSync(audioFilePath)) fs.unlinkSync(audioFilePath);
+        if (!transResponse.ok) {
+            const errorBody = await transResponse.text();
+            throw new Error(
+                `Transcription service failed: ${transResponse.status} - ${errorBody}`
+            );
         }
-    }
 
+        const transData = await transResponse.json();
+        transcription = transData.transcription || "";
+
+    } catch (error) {
+        console.error(`Transcription Error: ${error.message}`);
+    }
+}
     // --- Phase 2: AI Evaluation ---
     try {
         pushSocketUpdate(io, userId, sessionId, 'AI_EVALUATING', `AI is analyzing Q${questionIdx + 1}...`);
@@ -350,10 +368,7 @@ const submitAnswer = asyncHandler(async (req, res) => {
     }
 
     // --- NEW UNIFIED LOGIC ---
-    let audioFilePath = null;
-    if (req.file) {
-        audioFilePath = path.join(process.cwd(), req.file.path);
-    }
+   const audioFile = req.file || null;
 
     // We no longer error out if one is missing; 
     // we take whatever is provided (audio, code, or both).
@@ -372,7 +387,7 @@ const submitAnswer = asyncHandler(async (req, res) => {
     const io = req.app.get('io');
 
     // 3. Start AI processing with BOTH potential inputs
-    evaluateAnswerAsync(io, userId, sessionId, questionIdx, audioFilePath, codeSubmission);
+    evaluateAnswerAsync(io, userId, sessionId, questionIdx, audioFile, codeSubmission);
 });
 
 
