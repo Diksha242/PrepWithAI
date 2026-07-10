@@ -75,7 +75,7 @@ const Register = () => {
           <h2 className='text-xs font-black uppercase tracking-[0.3em] text-teal-600 mb-2'>PrepWithAI</h2>
           <h1 className='text-3xl sm:text-4xl font-black text-gray-900 leading-tight'>Get <span className='text-teal-500'>Started</span></h1>
           <p className='text-gray-500 mt-3 text-sm sm:text-base px-2'>
-            Join thousands of developers practicing with PrepWithAI
+            Prepare for your interviews with the power of AI. Create an account to start your journey towards success.
           </p>
         </div>
 

@@ -97,25 +97,61 @@ const createSession = asyncHandler(async (req, res) => {
 
             console.log('Sending to AI service:', aiPayload);
 
-            const aiResponse = await fetch(
-                `${AI_SERVICE_URL}/generate-questions`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(aiPayload),
-                }
-            );
+let aiResponse;
 
-            if (!aiResponse.ok) {
-                const errorBody = await aiResponse.text();
+for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+        console.log(`AI service request attempt ${attempt}/3`);
 
-                throw new Error(
-                    `AI Service error: ${aiResponse.status} - ${errorBody}`
-                );
+        aiResponse = await fetch(
+            `${AI_SERVICE_URL}/generate-questions`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(aiPayload),
             }
+        );
 
+        if (aiResponse.ok) {
+            break;
+        }
+
+        console.error(
+            `AI service attempt ${attempt} returned status ${aiResponse.status}`
+        );
+
+        // Don't retry normal client errors like 400/422
+        if (aiResponse.status < 500) {
+            break;
+        }
+
+    } catch (error) {
+        console.error(
+            `AI service attempt ${attempt} failed:`,
+            error.message
+        );
+
+        aiResponse = null;
+    }
+
+    if (attempt < 3) {
+        await new Promise(resolve =>
+            setTimeout(resolve, 5000 * attempt)
+        );
+    }
+}
+
+if (!aiResponse || !aiResponse.ok) {
+    const errorBody = aiResponse
+        ? await aiResponse.text()
+        : 'AI service did not respond';
+
+    throw new Error(
+        `AI Service error: ${aiResponse?.status || 'NO_RESPONSE'} - ${errorBody}`
+    );
+}
             const aiData = await aiResponse.json();
 
             const codingCount =
@@ -387,7 +423,9 @@ const submitAnswer = asyncHandler(async (req, res) => {
     const io = req.app.get('io');
 
     // 3. Start AI processing with BOTH potential inputs
-    evaluateAnswerAsync(io, userId, sessionId, questionIdx, audioFile, codeSubmission);
+    evaluateAnswerAsync(io, userId, sessionId, questionIdx, audioFile, codeSubmission).catch((error) => {
+         console.error('Background evaluation failure:', error);
+});
 });
 
 
