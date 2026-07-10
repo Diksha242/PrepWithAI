@@ -1,8 +1,7 @@
 import uvicorn
 import os
-import io
 import json
-import tempfile
+
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,10 +9,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from typing import Optional
 
-import ollama
-import whisper
-from pydub import AudioSegment
-
+from groq import Groq
 
 # ============================================================
 # ENVIRONMENT VARIABLES
@@ -21,8 +17,30 @@ from pydub import AudioSegment
 
 load_dotenv()
 
-AI_SERVICE_PORT = int(os.getenv("AI_SERVICE_PORT", 8000))
-OLLAMA_MODEL_NAME = os.getenv("OLLAMA_MODEL_NAME", "mistral")
+AI_SERVICE_PORT = int(
+    os.getenv("AI_SERVICE_PORT", 8000)
+)
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+GROQ_LLM_MODEL = os.getenv(
+    "GROQ_LLM_MODEL",
+    "llama-3.1-8b-instant"
+)
+
+GROQ_WHISPER_MODEL = os.getenv(
+    "GROQ_WHISPER_MODEL",
+    "whisper-large-v3-turbo"
+)
+
+if not GROQ_API_KEY:
+    raise RuntimeError(
+        "GROQ_API_KEY is missing from ai-service/.env"
+    )
+
+client = Groq(
+    api_key=GROQ_API_KEY
+)
 
 
 # ============================================================
@@ -48,22 +66,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-# ============================================================
-# WHISPER MODEL
-# ============================================================
-
-WHISPER_MODEL = None
-
-try:
-    print("Loading Whisper Model...")
-    WHISPER_MODEL = whisper.load_model("base.en")
-    print("Whisper Model Loaded Successfully")
-
-except Exception as e:
-    print("Error while loading Whisper Model")
-    print(e)
 
 
 # ============================================================
@@ -106,12 +108,12 @@ class EvaluationResponse(BaseModel):
 
 @app.get("/")
 async def root():
-
     return {
         "message": "Hello from AI Interviewer Microservice!",
-        "model": OLLAMA_MODEL_NAME
+        "provider": "Groq",
+        "llm_model": GROQ_LLM_MODEL,
+        "whisper_model": GROQ_WHISPER_MODEL
     }
-
 
 # ============================================================
 # GENERATE QUESTIONS
@@ -288,16 +290,22 @@ async def generate_questions(request: QuestionRequest):
 
 
         # ----------------------------------------------------
-        # CALL OLLAMA
+        # CALL GROQ
         # ----------------------------------------------------
 
-        response = ollama.generate(
-            model=OLLAMA_MODEL_NAME,
-            prompt=user_prompt,
-            system=system_prompt,
-            options={
-                "temperature": 0.6
-            }
+        response = client.chat.completions.create(
+            model=GROQ_LLM_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": user_prompt
+                }
+            ],
+             temperature=0.6,            
         )
 
 
@@ -305,7 +313,7 @@ async def generate_questions(request: QuestionRequest):
         # PROCESS RESPONSE
         # ----------------------------------------------------
 
-        raw_text = response["response"].strip()
+        raw_text = response.choices[0].message.content.strip()
 
         questions = [
             question.strip()
@@ -336,7 +344,7 @@ async def generate_questions(request: QuestionRequest):
 
         return QuestionResponse(
             questions=cleaned_questions[:request.count],
-            model_used=OLLAMA_MODEL_NAME
+            model_used=GROQ_LLM_MODEL
         )
 
 
@@ -363,73 +371,39 @@ async def generate_questions(request: QuestionRequest):
 async def transcribe_audio(
     file: UploadFile = File(...)
 ):
-
-    temp_audio_path = None
-
     try:
-
         audio_bytes = await file.read()
 
-        audio_in_memory = io.BytesIO(audio_bytes)
-
-        audio_segment = AudioSegment.from_file(
-            audio_in_memory
-        )
-
-
-        with tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=".mp3"
-        ) as tmp:
-
-            temp_audio_path = tmp.name
-
-
-        audio_segment.export(
-            temp_audio_path,
-            format="mp3"
-        )
-
-
-        if not WHISPER_MODEL:
-
+        if not audio_bytes:
             raise HTTPException(
-                status_code=503,
-                detail="Whisper Model is not loaded"
+                status_code=400,
+                detail="Uploaded audio file is empty."
             )
 
-
-        result = WHISPER_MODEL.transcribe(
-            temp_audio_path
+        transcription = client.audio.transcriptions.create(
+            file=(
+                file.filename or "recording.webm",
+                audio_bytes
+            ),
+            model=GROQ_WHISPER_MODEL,
+            response_format="json",
+            language="en"
         )
 
-
         return {
-            "transcription": result["text"].strip()
+            "transcription": transcription.text.strip()
         }
 
-
     except HTTPException:
-
         raise
 
-
     except Exception as e:
+        print(f"Transcription failed: {e}")
 
         raise HTTPException(
             status_code=500,
             detail=str(e)
         )
-
-
-    finally:
-
-        if (
-            temp_audio_path
-            and os.path.exists(temp_audio_path)
-        ):
-
-            os.remove(temp_audio_path)
 
 
 # ============================================================
@@ -538,21 +512,29 @@ async def evaluate(request: EvaluationRequest):
 
 
         # ----------------------------------------------------
-        # CALL OLLAMA
+        # CALL Groq
         # ----------------------------------------------------
 
-        response = ollama.generate(
-            model=OLLAMA_MODEL_NAME,
-            prompt=user_prompt,
-            system=system_prompt,
-            format="json",
-            options={
-                "temperature": 0.1
-            }
+        response = client.chat.completions.create(
+            model=GROQ_LLM_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": user_prompt
+                }
+            ],
+             temperature=0.1,
+             response_format={
+                 "type": "json_object"
+             }
         )
 
 
-        response_text = response["response"].strip()
+        response_text = response.choices[0].message.content.strip()
 
 
         # ----------------------------------------------------
