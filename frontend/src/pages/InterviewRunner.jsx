@@ -69,6 +69,7 @@ function InterviewRunner() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [isFinishing, setIsFinishing] = useState(false);
+  const [showFinishModal, setShowFinishModal] = useState(false);
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -184,7 +185,7 @@ function InterviewRunner() {
     if (code) formData.append('code', code);
     if (audio) formData.append('audioFile', audio, 'answer.webm');
 
-    // ✅ 2. Send Request
+    // 2. Send Request
     dispatch(submitAnswer({ sessionId, formData }))
       .unwrap()
       .catch((err) => {
@@ -197,8 +198,6 @@ function InterviewRunner() {
   const handleFinishInterview = async () => {
     // Prevent duplicate /end requests while one request is already running.
     if (isFinishing) return;
-
-    if (!window.confirm("Are you sure you want to finish?")) return;
 
     setIsFinishing(true);
 
@@ -218,6 +217,7 @@ function InterviewRunner() {
 
       // Allow retry only after the failed request has completed.
       setIsFinishing(false);
+      setShowFinishModal(false);
     }
   };
 
@@ -225,9 +225,44 @@ function InterviewRunner() {
 
   const currentDraft = drafts[currentQuestionIndex] || {};
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 py-8 pb-32">
-      <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-6">
+   return (
+  <div className="max-w-7xl mx-auto px-4 py-8 pb-32">
+
+    {showFinishModal && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
+        <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+
+          <h2 className="text-xl font-black text-slate-900">
+            Finish Interview?
+          </h2>
+
+          <p className="mt-2 text-sm text-slate-500">
+            Are you sure you want to finish the interview and view your results?
+          </p>
+
+          <div className="mt-6 flex justify-end gap-3">
+
+            <button
+              onClick={() => setShowFinishModal(false)}
+              disabled={isFinishing}
+              className="rounded-xl bg-slate-100 px-4 py-2 font-bold text-slate-700"
+            >
+              Cancel
+            </button>
+
+            <button
+              onClick={handleFinishInterview}
+              disabled={isFinishing}
+              className="rounded-xl bg-rose-600 px-4 py-2 font-bold text-white disabled:opacity-50"
+            >
+              {isFinishing ? "Finalizing..." : "Yes, Finish"}
+            </button>
+
+          </div>
+        </div>
+      </div>
+    )}
+         <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-6">
         <div>
           <h1 className="text-xl font-black text-slate-900">{activeSession.role}</h1>
           <div className="flex gap-2 mt-2">
@@ -244,7 +279,7 @@ function InterviewRunner() {
           </div>
         </div>
         <button
-          onClick={handleFinishInterview}
+          onClick={() => setShowFinishModal(true)}
           disabled={isFinishing}
           className="bg-rose-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
