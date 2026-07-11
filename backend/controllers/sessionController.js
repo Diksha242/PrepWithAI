@@ -383,9 +383,9 @@ if (audioFile) {
 
     } catch (error) {
             console.error("========== EVALUATION FAILED ==========");
-            console.error(error);
-            console.error(error.stack);
-        pushSocketUpdate(io, userId, sessionId, 'EVALUATION_FAILED', `Evaluation failed.`, session);
+            console.error("Message:", error.message);
+            console.error("Stack:", error.stack);
+        pushSocketUpdate(io, userId, sessionId, 'EVALUATION_FAILED', error.message, session);
     }
 };
 
@@ -431,10 +431,19 @@ const submitAnswer = asyncHandler(async (req, res) => {
 
     const io = req.app.get('io');
 
+    console.log("========== SUBMIT ANSWER ==========");
+    console.log("Session:", sessionId);
+    console.log("Question:", questionIdx);
+    console.log("Audio received:", !!audioFile);
+    console.log("Code received:", !!codeSubmission);
+
+    console.log("Starting evaluateAnswerAsync...");
+
     // 3. Start AI processing with BOTH potential inputs
     evaluateAnswerAsync(io, userId, sessionId, questionIdx, audioFile, codeSubmission).catch((error) => {
          console.error('Background evaluation failure:', error);
 });
+        console.log("evaluateAnswerAsync launched.");
 });
 
 
