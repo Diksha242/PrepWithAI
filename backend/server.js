@@ -19,6 +19,7 @@ const server = http.createServer(app);
 const allowedOrigin = [
     'http://localhost:5174',
     'http://localhost:5173',
+    'https://prepwithai.onrender.com',
 ]
 
 const io = new Server(server, {
