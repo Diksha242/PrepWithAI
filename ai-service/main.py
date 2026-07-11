@@ -474,18 +474,18 @@ async def evaluate(request: EvaluationRequest):
             "RULE 3: aiFeedback must clearly explain strengths, "
             "mistakes, and improvements. "
 
-            "RULE 4: idealAnswer must contain a clean Markdown "
-            "string and must not be a nested JSON object. "
+            "RULE 4: idealAnswer must be plain text only. "
+                "Do not use Markdown. "
+                "Do not use triple quotes. "
+                "Do not use code fences. "
 
-            f"Assessment Context: {assessment_instruction} "
+                "Respond ONLY with valid JSON. "
 
-            "Respond ONLY with a JSON object. "
-
-            "Required keys: "
-            "'technicalScore', "
-            "'confidenceScore', "
-            "'aiFeedback', "
-            "'idealAnswer'."
+                "Required keys: "
+                "'technicalScore', "
+                "'confidenceScore', "
+                "'aiFeedback', "
+                "'idealAnswer'."
         )
 
 
