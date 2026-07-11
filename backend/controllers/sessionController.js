@@ -103,6 +103,11 @@ for (let attempt = 1; attempt <= 3; attempt++) {
     try {
         console.log(`AI service request attempt ${attempt}/3`);
 
+        console.log("========== AI DEBUG ==========");
+        console.log("AI_SERVICE_URL:", AI_SERVICE_URL);
+        console.log("Payload:", aiPayload);
+        console.log("==============================");
+
         aiResponse = await fetch(
             `${AI_SERVICE_URL}/generate-questions`,
             {
@@ -113,6 +118,8 @@ for (let attempt = 1; attempt <= 3; attempt++) {
                 body: JSON.stringify(aiPayload),
             }
         );
+
+        console.log("Response status:", aiResponse.status);
 
         if (aiResponse.ok) {
             break;
