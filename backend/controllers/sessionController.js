@@ -382,7 +382,9 @@ if (audioFile) {
         }
 
     } catch (error) {
-        console.error(`Evaluation Error: ${error.message}`);
+            console.error("========== EVALUATION FAILED ==========");
+            console.error(error);
+            console.error(error.stack);
         pushSocketUpdate(io, userId, sessionId, 'EVALUATION_FAILED', `Evaluation failed.`, session);
     }
 };
