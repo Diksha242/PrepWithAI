@@ -9,6 +9,7 @@ import store from './app/store.js';
 import { BrowserRouter as Router } from 'react-router-dom'
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+console.log("GOOGLE CLIENT ID:", GOOGLE_CLIENT_ID);
 
 axios.interceptors.response.use(
   (response) => response,
